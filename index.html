@@ -1,87 +1,61 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Microbot Mayhem — Micro Arcade (SMALL)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microbot Mayhem - Competition Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="ui">
-        <div class="title">Microbot Mayhem — <span style="font-weight:500;font-size:14px;color:var(--muted)">Small robot. Big mission.</span></div>
-        <div class="controls">Theme: <strong>SMALL</strong> — Arcade action, physics-like movement, particles & polish</div>
-        <div id="meta">
-            <div class="panel" id="infoPanel">
-                Score: <span id="score">0</span> • 
-                Health: <span id="health">100</span> • 
-                Wave: <span id="wave">1</span> •
-                Combo: <span id="combo">0</span>x •
-                Coins: <span id="coins">0</span>
+    <div class="game-header">
+        <h1>MICROBOT MAYHEM</h1>
+        <div class="subtitle">Competition Edition - Defend the Biological System!</div>
+        <div class="stats-bar">
+            <div class="stat-item">High Score: <span id="highScoreDisplay" class="stat-value">0</span></div>
+            <div class="stat-item">Games Played: <span id="gamesPlayed" class="stat-value">0</span></div>
+            <div class="stat-item">Total Enemies: <span id="totalEnemies" class="stat-value">0</span></div>
+        </div>
+    </div>
+    
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="hud">
+                <div class="hud-item">
+                    <span>SCORE:</span>
+                    <span id="score" class="hud-value">0</span>
+                </div>
+                <div class="hud-item">
+                    <span>HEALTH:</span>
+                    <span id="health" class="hud-value">100</span>
+                </div>
             </div>
-            <div style="display:flex; gap:8px;">
-                <button id="playBtn">Play</button>
-                <button id="instructionsBtn" class="small">Instructions</button>
-                <button id="upgradesBtn" class="small">Upgrades</button>
-                <button id="pauseBtn" class="small">Pause</button>
-                <button id="restartBtn" class="small">Restart</button>
+            
+            <div class="wave-indicator">
+                <div class="wave-text">WAVE</div>
+                <div id="wave" class="wave-number">1</div>
+            </div>
+            
+            <div class="power-up-indicators" id="powerUpIndicators">
+                <!-- Power-up indicators will be added here dynamically -->
+            </div>
+            
+            <div class="controls">
+                <button id="playBtn" class="btn">Play</button>
+                <button id="pauseBtn" class="btn">Pause</button>
+                <button id="restartBtn" class="btn">Restart</button>
+                <button id="instructionsBtn" class="btn">Instructions</button>
             </div>
         </div>
-        <canvas id="gameCanvas" width="900" height="600"></canvas>
-        <footer>
-            Built for LittleJS Game Jam — Theme "SMALL". This HTML5 version runs anywhere. To port to LittleJS see notes in code.
-        </footer>
-    </div>
-
-    <!-- Achievement Popup -->
-    <div id="achievementPopup" class="achievement-popup">
-        <div class="achievement-title" id="achievementName">Achievement Unlocked!</div>
-        <div id="achievementDesc">Description</div>
-    </div>
-
-    <!-- Combo Popup -->
-    <div id="comboPopup" class="combo-popup">
-        <div class="combo-text" id="comboText">COMBO!</div>
-    </div>
-
-    <!-- Mission Complete Popup -->
-    <div id="missionPopup" class="mission-popup">
-        <div class="mission-title">Mission Complete!</div>
-        <div id="missionDesc">Mission Description</div>
-        <div class="mission-reward">+<span id="missionReward">0</span> Coins</div>
-    </div>
-
-    <!-- Upgrades Shop -->
-    <div id="upgradesShop" class="upgrades-shop">
-        <div class="shop-header">
-            <h2>Bot Upgrades</h2>
-            <button id="closeShop" class="small">Close</button>
-        </div>
-        <div class="shop-content">
-            <div class="coins-display">Coins: <span id="shopCoins">0</span></div>
-            <div class="upgrades-list">
-                <div class="upgrade-item" data-id="speed">
-                    <div class="upgrade-name">Speed Boost</div>
-                    <div class="upgrade-desc">+20% Movement Speed</div>
-                    <div class="upgrade-cost">Cost: 500 coins</div>
-                    <button class="buy-btn" data-id="speed">Buy</button>
-                </div>
-                <div class="upgrade-item" data-id="health">
-                    <div class="upgrade-name">Reinforced Hull</div>
-                    <div class="upgrade-desc">+25 Max Health</div>
-                    <div class="upgrade-cost">Cost: 800 coins</div>
-                    <button class="buy-btn" data-id="health">Buy</button>
-                </div>
-                <div class="upgrade-item" data-id="firerate">
-                    <div class="upgrade-name">Rapid Fire</div>
-                    <div class="upgrade-desc">+15% Fire Rate</div>
-                    <div class="upgrade-cost">Cost: 600 coins</div>
-                    <button class="buy-btn" data-id="firerate">Buy</button>
-                </div>
-            </div>
+        
+        <div id="achievementPopup" class="achievement-popup">
+            <div class="achievement-icon">🏆</div>
+            <div id="achievementName" class="achievement-name">Achievement Unlocked!</div>
+            <div id="achievementDesc" class="achievement-desc">Complete the objective</div>
         </div>
     </div>
 
-    <script src="game-core.js"></script>
-    <script src="game-addictive.js"></script>
+    <script src="game.js"></script>
 </body>
 </html>

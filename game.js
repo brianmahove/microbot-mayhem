@@ -10,22 +10,28 @@ const CONFIG = {
     maxEnemies: 12,
     spawnInterval: 1200, // ms
     enemySpeedRange: [0.6, 1.6],
-    playerSpeed: 320, // Increased from 260 to 320 for faster movement
+    playerSpeed: 320,
     projectileSpeed: 520,
     particleCount: 24,
     difficultyIncreaseInterval: 15000, // ms
     colorAccent: '#7ae6a6',
     colorDanger: '#ff6b6b',
     
-    // New config for enhancements
+    // Enhanced config
     powerUps: {
-        rapidFire: { duration: 5000, fireRate: 80, color: '#ffaa00' },
-        shield: { duration: 4000, color: '#00aaff' },
-        tripleShot: { duration: 3000, color: '#ff00aa' },
-        speedBoost: { duration: 4000, speedMultiplier: 1.8, color: '#aaff00' }
+        rapidFire: { duration: 5000, fireRate: 80, color: '#ffaa00', symbol: '⚡' },
+        shield: { duration: 4000, color: '#00aaff', symbol: '🛡️' },
+        tripleShot: { duration: 3000, color: '#ff00aa', symbol: '🔺' },
+        speedBoost: { duration: 4000, speedMultiplier: 1.8, color: '#aaff00', symbol: '💨' }
     },
     bossHealth: 200,
-    waveEnemyMultiplier: 1.2
+    waveEnemyMultiplier: 1.2,
+    
+    // New competition features
+    visualEffects: {
+        screenShake: true,
+        maxShakeIntensity: 15
+    }
 };
 
 /* ---------- Canvas & Context ---------- */
@@ -45,6 +51,10 @@ const waveEl = document.getElementById('wave');
 const achievementPopup = document.getElementById('achievementPopup');
 const achievementName = document.getElementById('achievementName');
 const achievementDesc = document.getElementById('achievementDesc');
+const powerUpIndicators = document.getElementById('powerUpIndicators');
+const highScoreDisplay = document.getElementById('highScoreDisplay');
+const gamesPlayed = document.getElementById('gamesPlayed');
+const totalEnemies = document.getElementById('totalEnemies');
 
 /* ---------- Game State ---------- */
 let lastTime = performance.now();
@@ -59,6 +69,7 @@ let enemiesDefeated = 0;
 let enemiesThisWave = 0;
 let bossActive = false;
 let gameTime = 0;
+let screenShake = { intensity: 0, duration: 0, startTime: 0 };
 
 /* ---------- Input ---------- */
 const input = { left:false, right:false, up:false, down:false, fire:false, mx:0, my:0, touch:false };
@@ -160,6 +171,25 @@ function startBackgroundMusic() {
     }, 600);
 }
 
+/* ---------- Screen Shake System ---------- */
+function applyScreenShake(intensity = 8, duration = 300) {
+    if(!CONFIG.visualEffects.screenShake) return;
+    screenShake = { 
+        intensity: Math.min(intensity, CONFIG.visualEffects.maxShakeIntensity), 
+        duration, 
+        startTime: performance.now() 
+    };
+}
+
+function updateScreenShake() {
+    if(screenShake.intensity > 0) {
+        const progress = (performance.now() - screenShake.startTime) / screenShake.duration;
+        if(progress >= 1) {
+            screenShake.intensity = 0;
+        }
+    }
+}
+
 /* ---------- Achievement System ---------- */
 const storage = {
     getHighScore: () => parseInt(localStorage.getItem('microbotHighScore') || '0'),
@@ -209,6 +239,87 @@ function showAchievementPopup(name, desc) {
     setTimeout(() => {
         achievementPopup.classList.remove('show');
     }, 3000);
+}
+
+/* ---------- Leaderboard System ---------- */
+class Leaderboard {
+    constructor() {
+        this.scores = JSON.parse(localStorage.getItem('microbotLeaderboard') || '[]');
+    }
+    
+    addScore(name, score, wave, time) {
+        this.scores.push({ 
+            name, 
+            score, 
+            wave, 
+            time, 
+            date: new Date().toLocaleDateString() 
+        });
+        this.scores.sort((a, b) => b.score - a.score);
+        this.scores = this.scores.slice(0, 10); // Keep top 10
+        localStorage.setItem('microbotLeaderboard', JSON.stringify(this.scores));
+    }
+    
+    render(ctx) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(50, 150, CONFIG.width - 100, 300);
+        
+        ctx.fillStyle = '#7ae6a6';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('LEADERBOARD', CONFIG.width/2, 180);
+        
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'left';
+        this.scores.forEach((entry, i) => {
+            const y = 220 + i * 25;
+            ctx.fillStyle = i === 0 ? '#ffd700' : '#ffffff';
+            ctx.fillText(`${i+1}. ${entry.name}`, 100, y);
+            ctx.fillText(entry.score, CONFIG.width - 150, y);
+            ctx.fillText(`Wave ${entry.wave}`, CONFIG.width - 80, y);
+        });
+    }
+}
+
+const leaderboard = new Leaderboard();
+
+/* ---------- Save System & Stats ---------- */
+class SaveSystem {
+    constructor() {
+        this.data = JSON.parse(localStorage.getItem('microbotSave') || '{}');
+        this.data.stats = this.data.stats || {
+            totalPlayTime: 0,
+            totalScore: 0,
+            highestWave: 0,
+            totalEnemiesDefeated: 0,
+            totalGames: 0,
+            totalPowerUps: 0
+        };
+    }
+    
+    saveGameStats() {
+        this.data.stats.totalPlayTime += gameTime;
+        this.data.stats.totalScore += score;
+        this.data.stats.highestWave = Math.max(this.data.stats.highestWave, currentWave);
+        this.data.stats.totalEnemiesDefeated += enemiesDefeated;
+        this.data.stats.totalGames += 1;
+        
+        localStorage.setItem('microbotSave', JSON.stringify(this.data));
+        updateStatsDisplay();
+    }
+    
+    getStats() {
+        return this.data.stats;
+    }
+}
+
+const saveSystem = new SaveSystem();
+
+function updateStatsDisplay() {
+    const stats = saveSystem.getStats();
+    highScoreDisplay.textContent = storage.getHighScore();
+    gamesPlayed.textContent = stats.totalGames;
+    totalEnemies.textContent = stats.totalEnemiesDefeated;
 }
 
 /* ---------- Particles ---------- */
@@ -317,13 +428,7 @@ class PowerUp {
         ctx.textBaseline = 'middle';
         ctx.font = '10px Arial';
         
-        let symbol = '?';
-        switch(this.type) {
-            case 'rapidFire': symbol = '⚡'; break;
-            case 'shield': symbol = '🛡️'; break;
-            case 'tripleShot': symbol = '🔺'; break;
-            case 'speedBoost': symbol = '💨'; break;
-        }
+        let symbol = CONFIG.powerUps[this.type].symbol;
         
         ctx.fillText(symbol, this.x, this.y);
         
@@ -347,14 +452,45 @@ function updatePowerUps(dt) {
             player.applyPowerUp(p.type);
             powerUps.splice(i, 1);
             
-            // Collection effects
-            createExplosion(p.x, p.y, p.color, 12);
+            // Enhanced collection effects
+            for(let j = 0; j < 20; j++) {
+                const angle = (j / 20) * Math.PI * 2;
+                spawnParticle(p.x, p.y, {
+                    vx: Math.cos(angle) * 180,
+                    vy: Math.sin(angle) * 180,
+                    life: 500 + Math.random() * 300,
+                    size: 3,
+                    color: p.color,
+                    fade: true
+                });
+            }
+            
             playBeep(800, 0.1, 'sine', 0.1);
         }
         // Remove expired power-ups
         else if(performance.now() - p.spawnTime > p.life) {
             powerUps.splice(i, 1);
         }
+    }
+}
+
+function updatePowerUpIndicators() {
+    powerUpIndicators.innerHTML = '';
+    const now = performance.now();
+    
+    for(const type in player.activePowerUps) {
+        const remaining = player.activePowerUps[type] - now;
+        const progress = remaining / CONFIG.powerUps[type].duration;
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'power-up-indicator';
+        indicator.innerHTML = `
+            <span class="power-up-icon">${CONFIG.powerUps[type].symbol}</span>
+            <div class="power-up-timer">
+                <div class="power-up-progress" style="width: ${progress * 100}%"></div>
+            </div>
+        `;
+        powerUpIndicators.appendChild(indicator);
     }
 }
 
@@ -405,8 +541,8 @@ class Player {
         // velocity integration + damping (reduced friction for more responsive movement)
         this.vx += ax * dt/1000;
         this.vy += ay * dt/1000;
-        this.vx *= 0.92; // Reduced from 0.94 for less friction
-        this.vy *= 0.92; // Reduced from 0.94 for less friction
+        this.vx *= 0.92;
+        this.vy *= 0.92;
 
         this.x += this.vx * dt/1000;
         this.y += this.vy * dt/1000;
@@ -528,7 +664,7 @@ class Player {
         // Ensure shield matches power-up state
         if(this.shieldActive && now > this.shieldEndTime) {
             this.shieldActive = false;
-        }
+    }
     }
 
     render(ctx){
@@ -584,39 +720,6 @@ class Player {
         ctx.fillStyle='rgba(6,8,10,0.95)';
         ctx.fillRect(this.radius-2, -4, 8, 8);
         ctx.restore();
-        
-        // Power-up indicators
-        this.renderPowerUpIndicators(ctx);
-    }
-    
-    renderPowerUpIndicators(ctx) {
-        const powerUpCount = Object.keys(this.activePowerUps).length;
-        if(powerUpCount === 0) return;
-        
-        const now = performance.now();
-        let index = 0;
-        
-        for(const type in this.activePowerUps) {
-            const remaining = this.activePowerUps[type] - now;
-            const progress = remaining / CONFIG.powerUps[type].duration;
-            
-            const x = 20 + index * 25;
-            const y = 30;
-            
-            // Background
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(x - 8, y - 8, 16, 16);
-            
-            // Icon
-            ctx.fillStyle = CONFIG.powerUps[type].color;
-            ctx.fillRect(x - 6, y - 6, 12, 12);
-            
-            // Timer bar
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.fillRect(x - 6, y + 8, 12 * progress, 2);
-            
-            index++;
-        }
     }
 }
 
@@ -699,6 +802,77 @@ class Enemy {
             ctx.fillStyle = this.health/this.maxHealth > 0.5 ? '#7ae6a6' : '#ff6b6b';
             ctx.fillRect(this.x - barWidth/2, barY, barWidth * (this.health/this.maxHealth), barHeight);
         }
+    }
+}
+
+/* ---------- Smart Enemy AI ---------- */
+class SmartEnemy extends Enemy {
+    constructor(x, y, speed, behavior = 'aggressive') {
+        super(x, y, speed);
+        this.behavior = behavior;
+        this.lastDecision = 0;
+        this.decisionCooldown = 800 + Math.random() * 400;
+        this.color = behavior === 'aggressive' ? '#ff6b6b' : 
+                    behavior === 'cowardly' ? '#4d8cff' : 
+                    '#ffaa00';
+    }
+    
+    update(dt, player) {
+        // Call parent update first
+        super.update(dt, player);
+        
+        const now = performance.now();
+        if(now - this.lastDecision > this.decisionCooldown) {
+            this.makeDecision(player);
+            this.lastDecision = now;
+        }
+    }
+    
+    makeDecision(player) {
+        const distance = Math.hypot(this.x - player.x, this.y - player.y);
+        
+        switch(this.behavior) {
+            case 'aggressive':
+                if(distance < 80) this.evade(player);
+                break;
+            case 'cowardly':
+                if(distance < 120) this.evade(player);
+                else this.approach(player);
+                break;
+            case 'flanker':
+                this.flank(player);
+                break;
+        }
+    }
+    
+    evade(player) {
+        const dx = this.x - player.x;
+        const dy = this.y - player.y;
+        const dist = Math.hypot(dx, dy);
+        this.vx += (dx/dist) * this.speed * 1.5;
+        this.vy += (dy/dist) * this.speed * 1.5;
+    }
+    
+    approach(player) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        this.vx += (dx/dist) * this.speed * 0.8;
+        this.vy += (dy/dist) * this.speed * 0.8;
+    }
+    
+    flank(player) {
+        const angle = Math.atan2(player.y - this.y, player.x - this.x);
+        const flankAngle = angle + (Math.PI / 2) * (Math.random() > 0.5 ? 1 : -1);
+        this.vx += Math.cos(flankAngle) * this.speed * 0.7;
+        this.vy += Math.sin(flankAngle) * this.speed * 0.7;
+        
+        // Also approach slightly
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        this.vx += (dx/dist) * this.speed * 0.3;
+        this.vy += (dy/dist) * this.speed * 0.3;
     }
 }
 
@@ -889,7 +1063,17 @@ function spawnEnemy(){
     else{ x = Math.random()*CONFIG.width; y = CONFIG.height + 20; }
 
     const speed = CONFIG.enemySpeedRange[0] + Math.random()*(CONFIG.enemySpeedRange[1] - CONFIG.enemySpeedRange[0]);
-    enemies.push(new Enemy(x,y,speed));
+    
+    // Smart enemy chance (increases with waves)
+    const smartEnemyChance = Math.min(0.3, currentWave * 0.05);
+    if(Math.random() < smartEnemyChance) {
+        const behaviors = ['aggressive', 'cowardly', 'flanker'];
+        const behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
+        enemies.push(new SmartEnemy(x, y, speed * 1.2, behavior));
+    } else {
+        enemies.push(new Enemy(x, y, speed));
+    }
+    
     enemiesThisWave++;
 }
 
@@ -900,6 +1084,7 @@ function spawnBoss() {
     
     // Boss spawn effects
     createExplosion(CONFIG.width/2, -30, '#ff5555', 30);
+    applyScreenShake(10, 500);
     
     // Audio cue
     playBeep(100, 0.3, 'sawtooth', 0.2);
@@ -928,6 +1113,7 @@ function checkWaveProgress() {
         
         // Wave complete effects
         createExplosion(CONFIG.width/2, CONFIG.height/2, '#7ae6a6', 20);
+        applyScreenShake(5, 300);
         playBeep(600, 0.2, 'sine', 0.1);
         
         // Achievement for reaching wave 5
@@ -940,6 +1126,36 @@ function checkWaveProgress() {
 /* ---------- Collision helpers ---------- */
 function circleCollision(a,b){ return Math.hypot(a.x-b.x,a.y-b.y) < (a.radius + b.radius); }
 
+/* ---------- Pickups ---------- */
+const pickups = [];
+
+function spawnPickup(x,y){
+    pickups.push({x,y,spawn:performance.now(), radius:10, life:12000, type:'heal'});
+}
+
+function updatePickups(dt){
+    for(let i=pickups.length-1;i>=0;i--){
+        const p = pickups[i];
+        // bobbing
+        p.y += Math.sin((performance.now() - p.spawn)/200)/40;
+        // collect
+        if(Math.hypot(player.x - p.x, player.y - p.y) < (player.radius + p.radius)){
+            pickups.splice(i,1);
+            player.health = Math.min(100, player.health + 24 + Math.random()*18);
+            score += 6;
+            playBeep(1150, 0.07, 'triangle', 0.09);
+            // particle ring
+            for(let k=0;k<14;k++){
+                spawnParticle(p.x + (Math.random()-0.5)*6, p.y + (Math.random()-0.5)*6, {
+                    speed: 60 + Math.random()*90, life:240 + Math.random()*200, size:2, color:'#bfffe0'
+                });
+            }
+        } else if(performance.now() - p.spawn > p.life){
+            pickups.splice(i,1);
+        }
+    }
+}
+
 /* ---------- Game loop ---------- */
 function resetGame(){
     player = new Player();
@@ -947,6 +1163,7 @@ function resetGame(){
     enemies.length = 0;
     particles.length = 0;
     powerUps.length = 0;
+    pickups.length = 0;
     score = 0;
     spawnTimer = 0;
     difficultyTimer = 0;
@@ -956,8 +1173,10 @@ function resetGame(){
     bossActive = false;
     gameTime = 0;
     consecutiveHits = 0;
+    screenShake.intensity = 0;
     state = 'menu';
     updateUI();
+    updateStatsDisplay();
 }
 
 function startGame(){
@@ -991,6 +1210,12 @@ function updateFrame(now){
     
     if(!paused && state === 'playing'){
         gameTime += delta;
+        
+        // Update screen shake
+        updateScreenShake();
+        
+        // Update power-up indicators
+        updatePowerUpIndicators();
         
         // Check achievements based on time
         if(gameTime > 120000 && !activeAchievements.includes('survivor')) {
@@ -1063,13 +1288,35 @@ function updateFrame(now){
 
             // enemy dies
             if(e.health <= 0){
-                // splatter particles
-                for(let k=0;k<22;k++){
-                    spawnParticle(e.x, e.y, {speed:50 + Math.random()*210, life:380 + Math.random()*240, size:1 + Math.random()*3, color:'#ffd08a'});
+                // Enhanced death particles
+                const colors = e instanceof BossEnemy ? 
+                    ['#ff5555', '#ff8888', '#ffaaaa'] : 
+                    e instanceof SmartEnemy ? 
+                    [e.color, '#ffffff', '#ffdd99'] :
+                    ['#ffd08a', '#ffaa66', '#ffcc99'];
+                
+                for(let k = 0; k < (e instanceof BossEnemy ? 40 : 22); k++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 50 + Math.random() * 210;
+                    spawnParticle(e.x, e.y, {
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 380 + Math.random() * 340,
+                        size: e instanceof BossEnemy ? 2 + Math.random() * 5 : 1 + Math.random() * 3,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        gravity: 0.2
+                    });
                 }
                 
                 const pan = (e.x / CONFIG.width - 0.5) * 2;
                 playExplosion(120 + Math.random()*100, 0.12);
+                
+                // Screen shake for deaths
+                if(e instanceof BossEnemy) {
+                    applyScreenShake(12, 500);
+                } else {
+                    applyScreenShake(4, 200);
+                }
                 
                 score += Math.floor(10 + Math.random()*20);
                 enemies.splice(i,1);
@@ -1119,6 +1366,9 @@ function updateFrame(now){
                 player.vy += (dy/dist) * 220;
                 for(let k=0;k<8;k++) spawnParticle(player.x,player.y,{speed:60 + Math.random()*120, life:220 + Math.random()*160, size:2, color:CONFIG.colorDanger});
 
+                // Screen shake on hit
+                applyScreenShake(6, 250);
+
                 const pan = (player.x / CONFIG.width - 0.5) * 2;
                 playBeep(160 + Math.random()*60, 0.06, 'sawtooth', 0.12, pan);
 
@@ -1163,10 +1413,16 @@ function updateFrame(now){
         // check game over
         if(player.health <= 0){
             state = 'gameover';
-            // Check for high score
+            // Save stats and check for high score
+            saveSystem.saveGameStats();
             if(score > storage.getHighScore()) {
                 storage.setHighScore(score);
             }
+            
+            // Leaderboard entry
+            const playerName = prompt('Enter your name for the leaderboard:', 'Player') || 'Player';
+            leaderboard.addScore(playerName, score, currentWave, Math.floor(gameTime/1000));
+            
             playBeep(80, 0.25, 'sine', 0.28);
             setTimeout(()=>{ /* small delay to show death */ }, 200);
         }
@@ -1177,40 +1433,23 @@ function updateFrame(now){
     requestAnimationFrame(updateFrame);
 }
 
-/* ---------- Pickups ---------- */
-const pickups = [];
-
-function spawnPickup(x,y){
-    pickups.push({x,y,spawn:performance.now(), radius:10, life:12000, type:'heal'});
-}
-
-function updatePickups(dt){
-    for(let i=pickups.length-1;i>=0;i--){
-        const p = pickups[i];
-        // bobbing
-        p.y += Math.sin((performance.now() - p.spawn)/200)/40;
-        // collect
-        if(Math.hypot(player.x - p.x, player.y - p.y) < (player.radius + p.radius)){
-            pickups.splice(i,1);
-            player.health = Math.min(100, player.health + 24 + Math.random()*18);
-            score += 6;
-            playBeep(1150, 0.07, 'triangle', 0.09);
-            // particle ring
-            for(let k=0;k<14;k++){
-                spawnParticle(p.x + (Math.random()-0.5)*6, p.y + (Math.random()-0.5)*6, {
-                    speed: 60 + Math.random()*90, life:240 + Math.random()*200, size:2, color:'#bfffe0'
-                });
-            }
-        } else if(performance.now() - p.spawn > p.life){
-            pickups.splice(i,1);
-        }
-    }
-}
-
 /* ---------- Render ---------- */
 function render(){
-    // background — microscopic bloodstream style with animated parallax blobs
+    // background
     ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Apply screen shake transform
+    ctx.save();
+    if(screenShake.intensity > 0) {
+        const progress = (performance.now() - screenShake.startTime) / screenShake.duration;
+        if(progress < 1) {
+            const shake = screenShake.intensity * (1 - progress);
+            ctx.translate(
+                (Math.random() - 0.5) * shake,
+                (Math.random() - 0.5) * shake
+            );
+        }
+    }
 
     // moving background blobs
     renderBackground(ctx);
@@ -1242,6 +1481,9 @@ function render(){
 
     // render particles
     renderParticles(ctx);
+
+    // Restore transform before UI
+    ctx.restore();
 
     // HUD overlay
     if(state === 'menu'){
@@ -1287,7 +1529,17 @@ function drawMenu(ctx){
     ctx.textAlign='center';
     ctx.font = '28px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#dff8f0';
-    ctx.fillText('Microbot Mayhem', CONFIG.width/2, CONFIG.height/2 - 40);
+    ctx.fillText('Microbot Mayhem', CONFIG.width/2, CONFIG.height/2 - 60);
+    
+    // Stats display
+    const stats = saveSystem.getStats();
+    if(stats.totalGames > 0) {
+        ctx.font = '12px Inter, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillText(`Games Played: ${stats.totalGames} | Highest Wave: ${stats.highestWave}`, CONFIG.width/2, CONFIG.height/2 - 30);
+        ctx.fillText(`Total Enemies Defeated: ${stats.totalEnemiesDefeated}`, CONFIG.width/2, CONFIG.height/2 - 15);
+    }
+    
     ctx.font = '14px Inter, sans-serif';
     ctx.fillStyle = '#bfeee0';
     ctx.fillText('Theme: SMALL — You are a tiny repair bot inside a human body. Survive & heal!', CONFIG.width/2, CONFIG.height/2 - 8);
@@ -1313,31 +1565,34 @@ function drawGameOver(ctx){
     ctx.textAlign='center';
     ctx.font='30px Inter, sans-serif';
     ctx.fillStyle = CONFIG.colorDanger;
-    ctx.fillText('SYSTEM FAILURE', CONFIG.width/2, CONFIG.height/2 - 20);
+    ctx.fillText('SYSTEM FAILURE', CONFIG.width/2, CONFIG.height/2 - 60);
     ctx.font='18px Inter, sans-serif';
     ctx.fillStyle='white';
-    ctx.fillText(`Score: ${score}`, CONFIG.width/2, CONFIG.height/2 + 10);
+    ctx.fillText(`Score: ${score}`, CONFIG.width/2, CONFIG.height/2 - 30);
     
     // Show high score if beaten
     const highScore = storage.getHighScore();
     if(score === highScore && score > 0) {
         ctx.fillStyle = CONFIG.colorAccent;
-        ctx.fillText('NEW HIGH SCORE!', CONFIG.width/2, CONFIG.height/2 + 35);
+        ctx.fillText('NEW HIGH SCORE!', CONFIG.width/2, CONFIG.height/2 - 5);
     } else if(highScore > 0) {
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.fillText(`High Score: ${highScore}`, CONFIG.width/2, CONFIG.height/2 + 35);
+        ctx.fillText(`High Score: ${highScore}`, CONFIG.width/2, CONFIG.height/2 - 5);
     }
+    
+    // Leaderboard display
+    leaderboard.render(ctx);
     
     ctx.font='13px Inter, sans-serif';
     ctx.fillStyle='#d0ffd8';
-    ctx.fillText('Press Restart to try again. Great run!', CONFIG.width/2, CONFIG.height/2 + 65);
+    ctx.fillText('Press Restart to try again. Great run!', CONFIG.width/2, CONFIG.height/2 + 250);
     ctx.restore();
 }
 
 /* ---------- UI Buttons ---------- */
 playBtn.addEventListener('click', ()=>{ if(state==='menu'){ startGame(); } else if(state==='gameover'){ resetGame(); startGame(); }});
 restartBtn.addEventListener('click', ()=>{ resetGame(); startGame(); });
-instructionsBtn.addEventListener('click', ()=>{ alert('Microbot Mayhem\n\nControls:\n- Move: WASD / Arrow keys\n- Aim: Mouse / Touch\n- Shoot: Mouse click or Space\n\nPower-ups:\n- ⚡ Rapid Fire: Faster shooting\n- 🛡️ Shield: Temporary protection\n- 🔺 Triple Shot: Fire three projectiles\n- 💨 Speed Boost: Increased movement speed\n\nObjective: Survive waves of enemies, defeat bosses, and achieve high scores!'); });
+instructionsBtn.addEventListener('click', ()=>{ alert('Microbot Mayhem - Competition Edition\n\nControls:\n- Move: WASD / Arrow keys\n- Aim: Mouse / Touch\n- Shoot: Mouse click or Space\n\nPower-ups:\n- ⚡ Rapid Fire: Faster shooting\n- 🛡️ Shield: Temporary protection\n- 🔺 Triple Shot: Fire three projectiles\n- 💨 Speed Boost: Increased movement speed\n\nEnemies:\n- Yellow: Basic enemies\n- Red: Aggressive - attacks then retreats\n- Blue: Cowardly - keeps distance\n- Orange: Flanker - moves around you\n- Big Red: BOSS - special attacks!\n\nObjective: Survive waves of enemies, defeat bosses, and achieve high scores!'); });
 pauseBtn.addEventListener('click', ()=>{ togglePause(); });
 
 /* ---------- Start the loop ---------- */
@@ -1348,6 +1603,9 @@ function startLoop(){
     requestAnimationFrame(updateFrame);
 }
 startLoop();
+
+// Initialize stats display
+updateStatsDisplay();
 
 /* Kick off default menu particles */
 for(let i=0;i<30;i++){
